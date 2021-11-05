@@ -6548,6 +6548,8 @@ class AutoTestCopter(AutoTest):
                     self.set_parameter("RNGFND%u_TYPE" % (offs+1), rngfnd_param_value)
             self.customise_SITL_commandline(command_line_args)
             self.fly_rangefinder_drivers_fly([x[0] for x in do_drivers])
+            for n in range(3):
+                self.set_parameter("RNGFND%u_TYPE" % (n+1), 0)
 
         self.fly_rangefinder_mavlink()
 
