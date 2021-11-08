@@ -6278,7 +6278,11 @@ class AutoTestCopter(AutoTest):
 
             self.progress("Landing gear should deploy with current_distance below min_distance")
             self.change_mode('STABILIZE')
-            self.wait_ready_to_arm()
+            timeout = 60
+            tstart = self.get_sim_time()
+            while not self.sensor_has_state(mavutil.mavlink.MAV_SYS_STATUS_PREARM_CHECK, True, True, True):
+                if self.get_sim_time() - tstart > timeout:
+                    raise NotAchievedException("Failed to become armable after %f seconds" % timeout)
             self.arm_vehicle()
             self.set_parameter("SERVO10_FUNCTION", 29)
             self.set_parameter("LGR_DEPLOY_ALT", 1)
