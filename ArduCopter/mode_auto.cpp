@@ -118,9 +118,6 @@ void ModeAuto::run()
         break;
 
     case SubMode::WP:
-    case SubMode::CIRCLE_MOVE_TO_EDGE:
-        wp_run();
-        break;
 
     case SubMode::LAND:
         land_run();
@@ -131,8 +128,16 @@ void ModeAuto::run()
         break;
 
     case SubMode::CIRCLE:
-        circle_run();
-        break;
+        // check in which state are we in
+        switch (_circle_state) {
+        case CircleSubModeState::CIRCLING:
+            circle_run();
+            break;
+        case CircleSubModeState::MOVING_TO_EDGE:
+            wp_run();
+            break;
+        }
+        break; // SubMode::CIRCLE
 
     case SubMode::NAVGUIDED:
 #if NAV_GUIDED == ENABLED
@@ -360,7 +365,7 @@ void ModeAuto::circle_movetoedge_start(const Location &circle_center, float radi
     // if more than 3m then fly to edge
     if (dist_to_edge > 300.0f) {
         // set the state to move to the edge of the circle
-        _mode = SubMode::CIRCLE_MOVE_TO_EDGE;
+        _circle_state = CircleSubModeState::MOVING_TO_EDGE;
 
         // convert circle_edge_neu to Location
         Location circle_edge(circle_edge_neu, Location::AltFrame::ABOVE_ORIGIN);
@@ -395,8 +400,7 @@ void ModeAuto::circle_movetoedge_start(const Location &circle_center, float radi
 //   assumes that circle_nav object has already been initialised with circle center and radius
 void ModeAuto::circle_start()
 {
-    _mode = SubMode::CIRCLE;
-
+    _circle_state = CircleSubModeState::CIRCLING;
     // initialise circle controller
     copter.circle_nav->init(copter.circle_nav->get_center(), copter.circle_nav->center_is_terrain_alt());
 
@@ -689,9 +693,13 @@ uint32_t ModeAuto::wp_distance() const
 {
     switch (_mode) {
     case SubMode::CIRCLE:
-        return copter.circle_nav->get_distance_to_target();
+        switch (_circle_state) {
+        case CircleSubModeState::CIRCLING:
+            return copter.circle_nav->get_distance_to_target();        
+        case CircleSubModeState::MOVING_TO_EDGE:
+            return wp_nav->get_wp_distance_to_destination();
+        }
     case SubMode::WP:
-    case SubMode::CIRCLE_MOVE_TO_EDGE:
     default:
         return wp_nav->get_wp_distance_to_destination();
     }
@@ -701,9 +709,13 @@ int32_t ModeAuto::wp_bearing() const
 {
     switch (_mode) {
     case SubMode::CIRCLE:
-        return copter.circle_nav->get_bearing_to_target();
+        switch (_circle_state) {
+        case CircleSubModeState::CIRCLING:
+            return copter.circle_nav->get_bearing_to_target();        
+        case CircleSubModeState::MOVING_TO_EDGE:
+            return wp_nav->get_wp_bearing_to_destination();
+        }
     case SubMode::WP:
-    case SubMode::CIRCLE_MOVE_TO_EDGE:
     default:
         return wp_nav->get_wp_bearing_to_destination();
     }
@@ -1344,6 +1356,7 @@ void ModeAuto::do_circle(const AP_Mission::Mission_Command& cmd)
     // calculate radius
     uint8_t circle_radius_m = HIGHBYTE(cmd.p1); // circle radius held in high byte of p1
 
+    _mode = SubMode::CIRCLE;
     // move to edge of circle (verify_circle) will ensure we begin circling once we reach the edge
     circle_movetoedge_start(circle_center, circle_radius_m);
 }
@@ -1959,7 +1972,7 @@ bool ModeAuto::verify_nav_wp(const AP_Mission::Mission_Command& cmd)
 bool ModeAuto::verify_circle(const AP_Mission::Mission_Command& cmd)
 {
     // check if we've reached the edge
-    if (mode() == SubMode::CIRCLE_MOVE_TO_EDGE) {
+    if (_circle_state == CircleSubModeState::MOVING_TO_EDGE) {
         if (copter.wp_nav->reached_wp_destination()) {
             // start circling
             circle_start();

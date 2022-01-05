@@ -396,12 +396,16 @@ public:
         WP,
         LAND,
         RTL,
-        CIRCLE_MOVE_TO_EDGE,
         CIRCLE,
         NAVGUIDED,
         LOITER,
         LOITER_TO_ALT,
         NAV_PAYLOAD_PLACE,
+    };
+
+    enum class CircleSubModeState : uint8_t {
+        MOVING_TO_EDGE,
+        CIRCLING,
     };
 
     // Auto
@@ -484,6 +488,7 @@ private:
     void payload_place_run_release();
 
     SubMode _mode = SubMode::TAKEOFF;   // controls which auto controller is run
+    CircleSubModeState _circle_state = CircleSubModeState::MOVING_TO_EDGE; // defines the state of vehicle when in circle submode
 
     Location terrain_adjusted_location(const AP_Mission::Mission_Command& cmd) const;
 
